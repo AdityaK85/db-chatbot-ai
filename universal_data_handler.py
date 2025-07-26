@@ -46,6 +46,8 @@ class UniversalDataHandler:
                 return self._test_csv_connection()
             elif self.file_type == 'json':
                 return self._test_json_connection()
+            elif self.file_type == 'sql':
+                return self._test_sql_file_connection()
             elif self.file_type in ['sqlite', 'sqlite3', 'db']:
                 return self._test_sqlite_connection()
             elif self.file_type == 'mysql' and HAS_MYSQL:
@@ -85,7 +87,25 @@ class UniversalDataHandler:
         """Test JSON file validity"""
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
+                content = f.read().strip()
+            
+            # Handle MongoDB JSON export format (multiple JSON objects per line)
+            if content.startswith('{') and '\n{' in content:
+                # MongoDB export format - each line is a JSON object
+                json_objects = []
+                for line in content.strip().split('\n'):
+                    if line.strip():
+                        try:
+                            json_objects.append(json.loads(line.strip()))
+                        except json.JSONDecodeError:
+                            continue
+                
+                if json_objects:
+                    self.data = pd.DataFrame(json_objects)
+                    return True
+            
+            # Regular JSON format
+            json_data = json.loads(content)
             
             # Convert JSON to DataFrame
             if isinstance(json_data, list):
@@ -105,6 +125,96 @@ class UniversalDataHandler:
         except Exception as e:
             print(f"JSON test error: {e}")
             return False
+    
+    def _test_sql_file_connection(self) -> bool:
+        """Test SQL file validity and convert to SQLite database"""
+        try:
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                sql_content = f.read()
+            
+            # Create an in-memory SQLite database
+            self.connection = sqlite3.connect(':memory:')
+            cursor = self.connection.cursor()
+            
+            # Split SQL content into individual statements
+            statements = []
+            current_statement = ""
+            
+            for line in sql_content.split('\n'):
+                line = line.strip()
+                if not line or line.startswith('--') or line.startswith('/*'):
+                    continue
+                
+                current_statement += line + '\n'
+                
+                if line.endswith(';'):
+                    statements.append(current_statement.strip())
+                    current_statement = ""
+            
+            # Execute SQL statements
+            executed_count = 0
+            for statement in statements:
+                try:
+                    # Skip certain PostgreSQL/MySQL specific commands
+                    if any(skip_word in statement.upper() for skip_word in ['CREATE DATABASE', 'USE ', 'SET ', 'START TRANSACTION', 'COMMIT']):
+                        continue
+                    
+                    # Convert some common PostgreSQL/MySQL syntax to SQLite
+                    statement = self._convert_sql_to_sqlite(statement)
+                    
+                    cursor.execute(statement)
+                    executed_count += 1
+                except Exception as e:
+                    print(f"Warning: Could not execute statement: {e}")
+                    continue
+            
+            # Get table names
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = cursor.fetchall()
+            self.table_names = [table[0] for table in tables]
+            
+            print(f"SQL file processed: {executed_count} statements executed, {len(self.table_names)} tables created")
+            return len(self.table_names) > 0
+            
+        except Exception as e:
+            print(f"SQL file test error: {e}")
+            return False
+    
+    def _convert_sql_to_sqlite(self, statement: str) -> str:
+        """Convert common SQL syntax to SQLite compatible format"""
+        # Convert data types
+        type_mappings = {
+            'VARCHAR': 'TEXT',
+            'CHAR': 'TEXT',
+            'LONGTEXT': 'TEXT',
+            'MEDIUMTEXT': 'TEXT',
+            'TINYTEXT': 'TEXT',
+            'BIGINT': 'INTEGER',
+            'SMALLINT': 'INTEGER',
+            'TINYINT': 'INTEGER',
+            'DECIMAL': 'REAL',
+            'DOUBLE': 'REAL',
+            'FLOAT': 'REAL',
+            'DATETIME': 'TEXT',
+            'TIMESTAMP': 'TEXT',
+            'DATE': 'TEXT',
+            'TIME': 'TEXT'
+        }
+        
+        for old_type, new_type in type_mappings.items():
+            statement = re.sub(rf'\b{old_type}\b', new_type, statement, flags=re.IGNORECASE)
+        
+        # Remove MySQL/PostgreSQL specific syntax
+        statement = re.sub(r'ENGINE=\w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'DEFAULT CHARSET=\w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'COLLATE=\w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'AUTO_INCREMENT=\d+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'AUTO_INCREMENT', 'AUTOINCREMENT', statement, flags=re.IGNORECASE)
+        
+        # Remove backticks (MySQL) and replace with double quotes if needed
+        statement = statement.replace('`', '"')
+        
+        return statement
     
     def _test_sqlite_connection(self) -> bool:
         """Test SQLite database connection"""
@@ -161,6 +271,8 @@ class UniversalDataHandler:
         try:
             if self.file_type in ['csv', 'json']:
                 return self._get_file_schema()
+            elif self.file_type == 'sql':
+                return self._get_sqlite_schema()  # SQL files are converted to SQLite
             elif self.file_type in ['sqlite', 'sqlite3', 'db']:
                 return self._get_sqlite_schema()
             elif self.file_type == 'mysql' and HAS_MYSQL:
@@ -392,6 +504,8 @@ class UniversalDataHandler:
             
             if self.file_type in ['csv', 'json']:
                 return self._execute_file_query(sql_query)
+            elif self.file_type == 'sql':
+                return self._execute_sqlite_query(sql_query)  # SQL files use SQLite
             elif self.file_type in ['sqlite', 'sqlite3', 'db']:
                 return self._execute_sqlite_query(sql_query)
             elif self.file_type == 'mysql' and HAS_MYSQL:
@@ -505,7 +619,6 @@ class UniversalDataHandler:
             modified_query = re.sub(rf'\b{placeholder}\b', table_name, modified_query, flags=re.IGNORECASE)
         
         # Try to match columns with case-insensitive approach
-        import re
         for actual_col in actual_columns:
             # Find similar column references in different cases
             pattern = rf'\b{re.escape(actual_col)}\b'
@@ -606,6 +719,25 @@ class UniversalDataHandler:
                         'columns': len(self.data.columns),
                         'rows': len(self.data)
                     }
+            elif self.file_type == 'sql':
+                # For SQL files, count rows in each table
+                for table_name in schema.keys():
+                    try:
+                        if self.connection:
+                            cursor = self.connection.cursor()
+                            cursor.execute(f"SELECT COUNT(*) FROM {table_name};")
+                            row_count = cursor.fetchone()[0]
+                            info['tables'][table_name] = {
+                                'columns': len(schema[table_name]),
+                                'rows': row_count
+                            }
+                            info['total_rows'] += row_count
+                    except Exception as e:
+                        print(f"Error getting row count for {table_name}: {e}")
+                        info['tables'][table_name] = {
+                            'columns': len(schema[table_name]),
+                            'rows': 0
+                        }
             else:
                 # For databases, count rows in each table/collection
                 for table_name in schema.keys():
@@ -660,6 +792,14 @@ class UniversalDataHandler:
                     else:
                         self._test_json_connection()
                 return self.data.head(limit) if self.data is not None else None
+            elif self.file_type in ['sql', 'sqlite', 'sqlite3', 'db']:
+                if table_name and table_name in self.table_names:
+                    query = f"SELECT * FROM {table_name} LIMIT {limit};"
+                    return self.execute_query(query)
+                elif self.table_names:
+                    # Return sample from first table if no specific table requested
+                    query = f"SELECT * FROM {self.table_names[0]} LIMIT {limit};"
+                    return self.execute_query(query)
             else:
                 if table_name and table_name in self.table_names:
                     query = f"SELECT * FROM {table_name} LIMIT {limit};"

@@ -66,12 +66,20 @@ def handle_file_upload(uploaded_file):
                 if file_extension in ['csv', 'json']:
                     columns_count = len(list(schema_info.values())[0]) if schema_info else 0
                     st.info(f"📊 {file_extension.upper()} file with {data_info.get('total_rows', 0)} rows and {columns_count} columns")
+                elif file_extension == 'sql':
+                    st.info(f"📊 SQL file processed: {len(schema_info)} tables created with {data_info.get('total_rows', 0)} total rows")
                 else:
                     st.info(f"📊 Found {len(schema_info)} tables: {', '.join(schema_info.keys())}")
                 
                 # Add welcome message
-                data_type = f"{file_extension.upper()} file" if file_extension in ['csv', 'json'] else "database"
-                welcome_msg = f"Hello! I'm your data assistant. I've loaded your {data_type} with {data_info.get('total_rows', 0)} total rows across {len(schema_info)} table(s). You can ask me questions about your data in natural language, and I'll help you query it!"
+                if file_extension in ['csv', 'json']:
+                    data_type = f"{file_extension.upper()} file"
+                elif file_extension == 'sql':
+                    data_type = "SQL dump file"
+                else:
+                    data_type = "database"
+                    
+                welcome_msg = f"Hello! I'm your data assistant. I've loaded your {data_type} with {data_info.get('total_rows', 0)} total rows across {len(schema_info)} table(s). You can ask questions like 'How many records are there?', 'Show me the first 10 rows', or 'What are the column names?'"
                 st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
                 
                 return True
@@ -173,10 +181,31 @@ def main():
         )
         
         if data_source == "File Upload":
+            # File format information
+            with st.expander("📋 Supported File Formats", expanded=False):
+                st.markdown("""
+                **CSV Files (.csv)**
+                - Comma-separated values with automatic encoding detection
+                - Headers will be used as column names
+                
+                **JSON Files (.json)**
+                - Standard JSON arrays or objects
+                - MongoDB export format (JSONL - one JSON object per line)
+                
+                **SQL Dump Files (.sql)**
+                - MySQL, PostgreSQL, or SQLite dump files
+                - Automatic conversion to SQLite format
+                - CREATE TABLE and INSERT statements supported
+                
+                **SQLite Databases (.db, .sqlite, .sqlite3)**
+                - Native SQLite database files
+                - Full schema and data access
+                """)
+            
             uploaded_file = st.file_uploader(
                 "Choose your data file",
-                type=['csv', 'json', 'db', 'sqlite', 'sqlite3'],
-                help="Upload a CSV, JSON, or SQLite database file to start chatting with your data"
+                type=['csv', 'json', 'sql', 'db', 'sqlite', 'sqlite3'],
+                help="Upload CSV, JSON, SQL dump, or SQLite database files to start chatting with your data"
             )
             
             if uploaded_file:
@@ -256,6 +285,26 @@ def main():
                     with st.expander(f"Structure: {table_name}"):
                         for col in columns:
                             st.text(f"• {col}")
+        
+        # Query examples
+        if st.session_state.database_connected:
+            with st.expander("💡 Example Questions", expanded=False):
+                st.markdown("""
+                **General Questions:**
+                - How many rows are in the data?
+                - What are all the column names?
+                - Show me the first 10 records
+                
+                **Analysis Questions:**
+                - What is the average value of [column]?
+                - Show me records where [column] > 100
+                - Group the data by [column] and count
+                
+                **Data Exploration:**
+                - What are the unique values in [column]?
+                - Find records containing 'text'
+                - Show me the latest/oldest records
+                """)
         
         # Clear chat button
         if st.button("🗑️ Clear Chat History"):

@@ -81,11 +81,16 @@ The application follows a modular architecture with clear separation of concerns
 
 ## Architecture Decisions
 
-### Data Sources: CSV and SQLite
-- **CSV Support**: Added support for CSV files using in-memory SQLite conversion
-- **SQLite Support**: Lightweight, file-based database suitable for upload scenarios
-- **Pros**: No server setup required, easy file handling, supports multiple data formats
-- **Cons**: Limited to single-user scenarios, file size limitations for large datasets
+### Data Sources: Universal Multi-Format Support
+- **CSV Support**: Enhanced with encoding detection, column name sanitization, and in-memory SQLite conversion
+- **JSON Support**: Standard JSON and MongoDB export format (JSONL) with automatic structure detection
+- **SQL File Support**: MySQL, PostgreSQL, and SQLite dump files with automatic conversion to SQLite
+- **SQLite Support**: Native SQLite database files with full schema access
+- **MySQL Support**: Direct database connections with credential management
+- **PostgreSQL Support**: Direct database connections with credential management  
+- **MongoDB Support**: Database connections with URI support and basic SQL-to-MongoDB query translation
+- **Pros**: Comprehensive data source coverage, no server setup for files, robust error handling
+- **Cons**: Database connections require external services, SQL-to-MongoDB translation is limited
 
 ### AI Service: OpenRouter.ai
 - **Rationale**: Provides access to multiple AI models through unified API
