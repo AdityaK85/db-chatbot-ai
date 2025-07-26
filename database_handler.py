@@ -110,13 +110,20 @@ class DatabaseHandler:
     
     def close_connection(self):
         """Close database connection"""
-        if self.connection:
-            self.connection.close()
+        try:
+            if self.connection:
+                self.connection.close()
+                self.connection = None
+        except Exception:
+            # Ignore thread-related errors during cleanup
             self.connection = None
     
     def __del__(self):
         """Cleanup database connection"""
-        self.close_connection()
+        try:
+            self.close_connection()
+        except Exception:
+            pass  # Ignore cleanup errors
         
         # Clean up temporary file if it exists
         if hasattr(self, 'db_path') and self.db_path and os.path.exists(self.db_path):

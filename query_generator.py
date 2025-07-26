@@ -13,14 +13,14 @@ class QueryGenerator:
             "Content-Type": "application/json"
         }
     
-    def generate_sql(self, user_query: str, schema_info: Dict[str, List[str]]) -> Optional[str]:
+    def generate_sql(self, user_query: str, schema_info: Dict[str, List[str]], data_type: str = "database") -> Optional[str]:
         """Generate SQL query from natural language"""
         try:
             # Create schema context
-            schema_context = self._format_schema_context(schema_info)
+            schema_context = self._format_schema_context(schema_info, data_type)
             
             # Create the prompt
-            prompt = self._create_sql_prompt(user_query, schema_context)
+            prompt = self._create_sql_prompt(user_query, schema_context, data_type)
             
             # Make API call
             payload = {
@@ -28,7 +28,7 @@ class QueryGenerator:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are an expert SQL query generator. Generate only valid SQLite queries based on the provided schema. Return only the SQL query without any explanations or formatting."
+                        "content": f"You are an expert SQL query generator. Generate only valid SQLite queries based on the provided schema. The data source is a {data_type}. Return only the SQL query without any explanations or formatting."
                     },
                     {
                         "role": "user",
@@ -62,18 +62,24 @@ class QueryGenerator:
             print(f"Error generating SQL: {e}")
             return None
     
-    def _format_schema_context(self, schema_info: Dict[str, List[str]]) -> str:
+    def _format_schema_context(self, schema_info: Dict[str, List[str]], data_type: str = "database") -> str:
         """Format schema information for the prompt"""
-        schema_text = "Database Schema:\n"
+        if data_type == "csv":
+            schema_text = "CSV File Schema:\n"
+        else:
+            schema_text = "Database Schema:\n"
         
         for table_name, columns in schema_info.items():
-            schema_text += f"\nTable: {table_name}\n"
+            if data_type == "csv":
+                schema_text += f"\nTable/File: {table_name}\n"
+            else:
+                schema_text += f"\nTable: {table_name}\n"
             for column in columns:
                 schema_text += f"  - {column}\n"
         
         return schema_text
     
-    def _create_sql_prompt(self, user_query: str, schema_context: str) -> str:
+    def _create_sql_prompt(self, user_query: str, schema_context: str, data_type: str = "database") -> str:
         """Create the complete prompt for SQL generation"""
         prompt = f"""
 {schema_context}
@@ -86,6 +92,7 @@ Generate a SQLite query to answer this question. Requirements:
 3. Include appropriate WHERE clauses, JOINs, GROUP BY, ORDER BY as needed
 4. Return only the SQL query, no explanations
 5. Use SQLite-compatible syntax
+6. {"For CSV data, the table name matches the file name" if data_type == "csv" else "Use the exact table names provided"}
 
 SQL Query:
 """

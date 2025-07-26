@@ -1,8 +1,8 @@
-# SQL Chatbot Agent
+# Data Chatbot Agent
 
 ## Overview
 
-This is a Streamlit-based SQL chatbot application that allows users to upload SQLite databases and interact with them using natural language queries. The system leverages OpenRouter.ai's API to convert natural language questions into SQL queries and format the results into conversational responses.
+This is a Streamlit-based data chatbot application that allows users to upload CSV files or SQLite databases and interact with them using natural language queries. The system leverages OpenRouter.ai's API to convert natural language questions into SQL queries and format the results into conversational responses.
 
 ## User Preferences
 
@@ -24,10 +24,10 @@ The application follows a modular architecture with clear separation of concerns
 - **Features**: File upload, chat interface, session state management
 - **Technology**: Streamlit framework for web UI
 
-### 2. Database Handler (`database_handler.py`)
-- **Purpose**: SQLite database operations and schema management
-- **Features**: Connection testing, schema introspection, query execution
-- **Technology**: sqlite3 with pandas for data manipulation
+### 2. Data Handler (`data_handler.py`)
+- **Purpose**: Multi-format data operations and schema management
+- **Features**: CSV and SQLite support, connection testing, schema introspection, query execution
+- **Technology**: sqlite3 with pandas for data manipulation, in-memory SQLite for CSV queries
 
 ### 3. Query Generator (`query_generator.py`)
 - **Purpose**: Convert natural language to SQL queries
@@ -41,11 +41,11 @@ The application follows a modular architecture with clear separation of concerns
 
 ## Data Flow
 
-1. **Database Upload**: User uploads SQLite database file
-2. **Schema Analysis**: System extracts table structures and column information
+1. **Data Upload**: User uploads CSV file or SQLite database file
+2. **Schema Analysis**: System extracts data structures and column information
 3. **Natural Language Input**: User asks questions in plain English
 4. **Query Generation**: AI converts question to SQL using schema context
-5. **Query Execution**: SQL query runs against the uploaded database
+5. **Query Execution**: SQL query runs against the uploaded data (in-memory SQLite for CSV)
 6. **Response Formatting**: Results are formatted into conversational responses
 7. **Display**: Formatted response and data are presented to the user
 
@@ -81,10 +81,11 @@ The application follows a modular architecture with clear separation of concerns
 
 ## Architecture Decisions
 
-### Database Choice: SQLite
-- **Rationale**: Lightweight, file-based database suitable for upload scenarios
-- **Pros**: No server setup required, easy file handling, good for demos
-- **Cons**: Limited to single-user scenarios, file size limitations
+### Data Sources: CSV and SQLite
+- **CSV Support**: Added support for CSV files using in-memory SQLite conversion
+- **SQLite Support**: Lightweight, file-based database suitable for upload scenarios
+- **Pros**: No server setup required, easy file handling, supports multiple data formats
+- **Cons**: Limited to single-user scenarios, file size limitations for large datasets
 
 ### AI Service: OpenRouter.ai
 - **Rationale**: Provides access to multiple AI models through unified API
