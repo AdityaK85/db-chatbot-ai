@@ -155,14 +155,23 @@ class UniversalDataHandler:
             executed_count = 0
             for statement in statements:
                 try:
-                    # Skip certain PostgreSQL/MySQL specific commands
-                    if any(skip_word in statement.upper() for skip_word in ['CREATE DATABASE', 'USE ', 'SET ', 'START TRANSACTION', 'COMMIT']):
+                    # Skip certain PostgreSQL/MySQL specific commands and problematic statements
+                    skip_words = ['CREATE DATABASE', 'USE ', 'SET ', 'START TRANSACTION', 'COMMIT', 'SOURCE', 'FLUSH', 'DELIMITER', 'DROP DATABASE']
+                    if any(skip_word in statement.upper() for skip_word in skip_words):
+                        continue
+                    
+                    # Skip empty statements
+                    if not statement.strip():
                         continue
                     
                     # Convert some common PostgreSQL/MySQL syntax to SQLite
-                    statement = self._convert_sql_to_sqlite(statement)
+                    converted_statement = self._convert_sql_to_sqlite(statement)
                     
-                    cursor.execute(statement)
+                    # Skip if conversion resulted in empty statement
+                    if not converted_statement.strip():
+                        continue
+                    
+                    cursor.execute(converted_statement)
                     executed_count += 1
                 except Exception as e:
                     print(f"Warning: Could not execute statement: {e}")
@@ -182,39 +191,71 @@ class UniversalDataHandler:
     
     def _convert_sql_to_sqlite(self, statement: str) -> str:
         """Convert common SQL syntax to SQLite compatible format"""
-        # Convert data types
+        # Skip problematic statement patterns
+        skip_patterns = [
+            r'^\s*(SOURCE|source)\s+',
+            r'^\s*(DELIMITER|delimiter)\s+',
+            r'^\s*#',
+            r'^\s*/\*.*\*/',
+            r'^\s*(SHOW|show)\s+',
+            r'^\s*(DESCRIBE|describe)\s+',
+            r'^\s*(ALTER\s+DATABASE|alter\s+database)',
+            r'^\s*(KEY|key)\s+\w+\s*\(',
+            r'^\s*(INDEX|index)\s+\w+\s*\('
+        ]
+        
+        for pattern in skip_patterns:
+            if re.match(pattern, statement):
+                return ""
+        
+        # Remove MySQL/PostgreSQL specific syntax first
+        statement = re.sub(r'ENGINE\s*=\s*\w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'DEFAULT CHARSET\s*=\s*\w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'COLLATE\s*=?\s*\w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'AUTO_INCREMENT\s*=?\s*\d*', 'AUTOINCREMENT', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'UNSIGNED', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'CHARACTER SET \w+', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'ON UPDATE CURRENT_TIMESTAMP', '', statement, flags=re.IGNORECASE)
+        
+        # Remove KEY definitions
+        statement = re.sub(r',\s*KEY\s+\w+\s*\([^)]+\)', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r',\s*INDEX\s+\w+\s*\([^)]+\)', '', statement, flags=re.IGNORECASE)
+        statement = re.sub(r',\s*UNIQUE\s+KEY\s+\w+\s*\([^)]+\)', '', statement, flags=re.IGNORECASE)
+        
+        # Convert data types with parameters
         type_mappings = {
-            'VARCHAR': 'TEXT',
-            'CHAR': 'TEXT',
-            'LONGTEXT': 'TEXT',
-            'MEDIUMTEXT': 'TEXT',
-            'TINYTEXT': 'TEXT',
-            'BIGINT': 'INTEGER',
-            'SMALLINT': 'INTEGER',
-            'TINYINT': 'INTEGER',
-            'DECIMAL': 'REAL',
-            'DOUBLE': 'REAL',
-            'FLOAT': 'REAL',
-            'DATETIME': 'TEXT',
-            'TIMESTAMP': 'TEXT',
-            'DATE': 'TEXT',
-            'TIME': 'TEXT'
+            r'VARCHAR\(\d+\)': 'TEXT',
+            r'CHAR\(\d+\)': 'TEXT',
+            r'LONGTEXT': 'TEXT',
+            r'MEDIUMTEXT': 'TEXT',
+            r'TINYTEXT': 'TEXT',
+            r'TEXT': 'TEXT',
+            r'INT\(\d+\)': 'INTEGER',
+            r'BIGINT\(\d+\)': 'INTEGER',
+            r'SMALLINT\(\d+\)': 'INTEGER',
+            r'TINYINT\(\d+\)': 'INTEGER',
+            r'DECIMAL\(\d+,\d+\)': 'REAL',
+            r'DOUBLE\(\d+,\d+\)': 'REAL',
+            r'FLOAT\(\d+,\d+\)': 'REAL',
+            r'DATETIME': 'TEXT',
+            r'TIMESTAMP': 'TEXT',
+            r'DATE': 'TEXT',
+            r'TIME': 'TEXT',
+            r'ENUM\([^)]+\)': 'TEXT'
         }
         
         for old_type, new_type in type_mappings.items():
-            statement = re.sub(rf'\b{old_type}\b', new_type, statement, flags=re.IGNORECASE)
+            statement = re.sub(old_type, new_type, statement, flags=re.IGNORECASE)
         
-        # Remove MySQL/PostgreSQL specific syntax
-        statement = re.sub(r'ENGINE=\w+', '', statement, flags=re.IGNORECASE)
-        statement = re.sub(r'DEFAULT CHARSET=\w+', '', statement, flags=re.IGNORECASE)
-        statement = re.sub(r'COLLATE=\w+', '', statement, flags=re.IGNORECASE)
-        statement = re.sub(r'AUTO_INCREMENT=\d+', '', statement, flags=re.IGNORECASE)
-        statement = re.sub(r'AUTO_INCREMENT', 'AUTOINCREMENT', statement, flags=re.IGNORECASE)
-        
-        # Remove backticks (MySQL) and replace with double quotes if needed
+        # Remove backticks (MySQL) and replace with double quotes
         statement = statement.replace('`', '"')
         
-        return statement
+        # Clean up multiple commas and extra whitespace
+        statement = re.sub(r',\s*,', ',', statement)
+        statement = re.sub(r',\s*\)', ')', statement)
+        statement = re.sub(r'\s+', ' ', statement)
+        
+        return statement.strip()
     
     def _test_sqlite_connection(self) -> bool:
         """Test SQLite database connection"""

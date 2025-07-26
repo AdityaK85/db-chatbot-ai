@@ -106,3 +106,18 @@ The application follows a modular architecture with clear separation of concerns
 - **Rationale**: Separation of concerns for maintainability
 - **Pros**: Testable components, clear responsibilities, easy to extend
 - **Cons**: Slight complexity overhead for small applications
+
+## Recent Changes
+
+### July 26, 2025 - Monetization Preparation & SQL Enhancement
+- **Monetization Ready**: Added advertisement placeholder spaces for Google AdSense, Google Ads, and Facebook Ads
+  - Header banner (728x90) at top of application
+  - Sidebar advertisement (300x250) in right panel
+  - Footer banner (728x90) at bottom of page
+- **Enhanced SQL Processing**: Improved SQL dump file processing with better MySQL/PostgreSQL to SQLite conversion
+  - Enhanced pattern matching for problematic SQL statements
+  - Better data type conversion with parameter handling
+  - Improved KEY and INDEX definition removal
+  - More robust whitespace and syntax cleanup
+- **Documentation**: Created comprehensive MONETIZATION_GUIDE.md with step-by-step instructions for implementing advertisements
+- **User Interface**: Added file format documentation and example queries to improve user experience

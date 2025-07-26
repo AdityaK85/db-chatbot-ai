@@ -163,6 +163,16 @@ def process_user_query(user_input):
         return "I encountered an error while processing your request. Please try again."
 
 def main():
+    # Advertisement preparation area - Header Banner
+    st.markdown("""
+    <div style='text-align: center; padding: 10px; background-color: #f0f2f6; border-radius: 5px; margin-bottom: 20px;'>
+        <!-- Google AdSense Header Banner (728x90) - Ready for implementation -->
+        <div id="header-ad-banner" style="width: 100%; max-width: 728px; height: 90px; margin: 0 auto; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px;">
+            📢 Advertisement Space - Header Banner (728x90)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.title("🤖 Data Chatbot Agent")
     st.markdown("Upload your CSV file or database and chat with your data using natural language!")
     
@@ -310,6 +320,17 @@ def main():
         if st.button("🗑️ Clear Chat History"):
             st.session_state.messages = []
             st.rerun()
+        
+        # Advertisement preparation area - Sidebar Ad
+        st.markdown("---")
+        st.markdown("""
+        <div style='text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px; margin-top: 20px;'>
+            <!-- Google AdSense Sidebar Ad (300x250) - Ready for implementation -->
+            <div id="sidebar-ad" style="width: 300px; height: 250px; margin: 0 auto; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">
+                📢 Advertisement<br>Space<br>(300x250)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Main chat interface
     st.header("💬 Chat with your Data")
@@ -342,6 +363,17 @@ def main():
             
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
+    
+    # Advertisement preparation area - Footer Banner
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; padding: 15px; background-color: #f0f2f6; border-radius: 5px; margin-top: 30px;'>
+        <!-- Google AdSense Footer Banner (728x90) - Ready for implementation -->
+        <div id="footer-ad-banner" style="width: 100%; max-width: 728px; height: 90px; margin: 0 auto; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px;">
+            📢 Advertisement Space - Footer Banner (728x90)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
