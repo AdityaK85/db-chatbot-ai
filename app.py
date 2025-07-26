@@ -162,7 +162,96 @@ def process_user_query(user_input):
         st.error(f"Error processing query: {str(e)}")
         return "I encountered an error while processing your request. Please try again."
 
+def show_privacy_page():
+    """Display privacy policy page"""
+    from privacy_policy import show_privacy_policy
+    show_privacy_policy()
+
+def show_monetization_page():
+    """Display monetization information page"""
+    st.title("💰 Monetization Information")
+    
+    st.markdown("""
+    ## Google Ads Revenue Setup
+    
+    Your application is fully prepared for Google AdSense monetization! Here's what's ready:
+    
+    ### Advertisement Spaces
+    ✅ **Header Banner (728x90)** - Premium placement at top of page  
+    ✅ **Sidebar Ad (300x250)** - High-visibility rectangular ad  
+    ✅ **Footer Banner (728x90)** - Additional revenue opportunity  
+    
+    ### Required Documents
+    ✅ **Privacy Policy** - Complete and compliant with Google policies  
+    ✅ **Setup Guide** - Step-by-step instructions in GOOGLE_ADS_SETUP.md  
+    ✅ **Google Analytics** - Ready for tracking and optimization  
+    
+    ### Next Steps to Start Earning
+    1. **Apply for Google AdSense** at [www.google.com/adsense](https://www.google.com/adsense/)
+    2. **Add your website URL**: Use your Replit app URL
+    3. **Wait for approval** (typically 24-72 hours)
+    4. **Get your Publisher ID** and Ad Slot IDs
+    5. **Replace placeholder code** with real AdSense code
+    6. **Start earning** from user visits and ad clicks!
+    
+    ### Revenue Potential
+    - **Low Traffic** (100 visitors/day): $1-5/month
+    - **Medium Traffic** (1,000 visitors/day): $10-50/month  
+    - **High Traffic** (10,000 visitors/day): $100-500/month
+    
+    ### Optimization Tips
+    - Create valuable content to increase user engagement
+    - Share your app on social media and relevant forums
+    - Use Google Ads to promote your application
+    - Monitor performance with Google Analytics
+    - A/B test different ad placements
+    
+    ### Support Files
+    - `GOOGLE_ADS_SETUP.md` - Complete setup instructions
+    - `MONETIZATION_GUIDE.md` - Comprehensive monetization strategy
+    - `privacy_policy.py` - Legal compliance page
+    
+    **Ready to start earning!** Follow the setup guide and you'll be generating revenue from your data chatbot application.
+    """)
+
 def main():
+    # Google Analytics preparation (replace YOUR_GA_ID with actual ID)
+    st.markdown("""
+    <!-- Google Analytics - Ready for implementation -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'GA_MEASUREMENT_ID');
+    </script>
+    """, unsafe_allow_html=True)
+    
+    # Navigation menu
+    nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+    with nav_col1:
+        if st.button("🏠 Home"):
+            st.session_state.page = "home"
+    with nav_col2:
+        if st.button("🔒 Privacy Policy"):
+            st.session_state.page = "privacy"
+    with nav_col3:
+        if st.button("💰 Monetization Info"):
+            st.session_state.page = "monetization"
+    
+    # Initialize page state
+    if 'page' not in st.session_state:
+        st.session_state.page = "home"
+    
+    # Show different pages based on navigation
+    if st.session_state.page == "privacy":
+        show_privacy_page()
+        return
+    elif st.session_state.page == "monetization":
+        show_monetization_page()
+        return
+    
+    # Home page content
     # Advertisement preparation area - Header Banner
     st.markdown("""
     <div style='text-align: center; padding: 10px; background-color: #f0f2f6; border-radius: 5px; margin-bottom: 20px;'>
