@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import os
 import tempfile
-from data_handler import DataHandler
+from universal_data_handler import UniversalDataHandler
 from query_generator import QueryGenerator
 from response_formatter import ResponseFormatter
 
@@ -19,6 +19,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "data_handler" not in st.session_state:
     st.session_state.data_handler = None
+if "data_source_type" not in st.session_state:
+    st.session_state.data_source_type = None
 if "query_generator" not in st.session_state:
     st.session_state.query_generator = None
 if "response_formatter" not in st.session_state:
@@ -49,8 +51,9 @@ def handle_file_upload(uploaded_file):
                     temp_file.write(uploaded_file.getvalue())
                     temp_file_path = temp_file.name
             
-            # Initialize data handler
-            st.session_state.data_handler = DataHandler(temp_file_path, file_extension)
+            # Initialize universal data handler
+            st.session_state.data_handler = UniversalDataHandler(temp_file_path, file_extension)
+            st.session_state.data_source_type = file_extension
             
             # Test connection and get schema info
             if st.session_state.data_handler.test_connection():
@@ -60,14 +63,15 @@ def handle_file_upload(uploaded_file):
                 
                 st.success(f"✅ {file_extension.upper()} file loaded successfully!")
                 
-                if file_extension == 'csv':
-                    st.info(f"📊 CSV file with {data_info['total_rows']} rows and {len(list(schema_info.values())[0]) if schema_info else 0} columns")
+                if file_extension in ['csv', 'json']:
+                    columns_count = len(list(schema_info.values())[0]) if schema_info else 0
+                    st.info(f"📊 {file_extension.upper()} file with {data_info.get('total_rows', 0)} rows and {columns_count} columns")
                 else:
                     st.info(f"📊 Found {len(schema_info)} tables: {', '.join(schema_info.keys())}")
                 
                 # Add welcome message
-                data_type = "CSV file" if file_extension == 'csv' else "database"
-                welcome_msg = f"Hello! I'm your data assistant. I've loaded your {data_type} with {data_info['total_rows']} total rows. You can ask me questions about your data in natural language, and I'll help you query it!"
+                data_type = f"{file_extension.upper()} file" if file_extension in ['csv', 'json'] else "database"
+                welcome_msg = f"Hello! I'm your data assistant. I've loaded your {data_type} with {data_info.get('total_rows', 0)} total rows across {len(schema_info)} table(s). You can ask me questions about your data in natural language, and I'll help you query it!"
                 st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
                 
                 return True
@@ -80,6 +84,34 @@ def handle_file_upload(uploaded_file):
             return False
     return False
 
+def handle_database_connection(db_type: str, connection_params: dict):
+    """Handle database connection"""
+    try:
+        # Initialize universal data handler for database connection
+        st.session_state.data_handler = UniversalDataHandler("", db_type, connection_params)
+        st.session_state.data_source_type = db_type
+        
+        # Test connection and get schema info
+        if st.session_state.data_handler.test_connection():
+            st.session_state.database_connected = True
+            schema_info = st.session_state.data_handler.get_schema_info()
+            
+            st.success(f"✅ Connected to {db_type.upper()} database!")
+            st.info(f"📊 Found {len(schema_info)} tables/collections: {', '.join(schema_info.keys())}")
+            
+            # Add welcome message
+            welcome_msg = f"Hello! I'm connected to your {db_type.upper()} database with {len(schema_info)} tables/collections. You can ask me questions about your data in natural language!"
+            st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
+            
+            return True
+        else:
+            st.error(f"❌ Failed to connect to {db_type.upper()} database. Please check your connection parameters.")
+            return False
+            
+    except Exception as e:
+        st.error(f"❌ Error connecting to database: {str(e)}")
+        return False
+
 def process_user_query(user_input):
     """Process user query and generate response"""
     if not st.session_state.database_connected or not st.session_state.data_handler:
@@ -88,11 +120,17 @@ def process_user_query(user_input):
     try:
         # Get data schema for context
         schema_info = st.session_state.data_handler.get_schema_info()
-        data_type = "csv" if st.session_state.data_handler.file_type == 'csv' else "database"
+        data_type = st.session_state.data_source_type or st.session_state.data_handler.file_type
+        
+        # Map data types for query generation context
+        if data_type in ['csv', 'json']:
+            query_context = "file"
+        else:
+            query_context = "database"
         
         # Generate SQL query
         with st.spinner("🤔 Understanding your question..."):
-            sql_query = st.session_state.query_generator.generate_sql(user_input, schema_info, data_type)
+            sql_query = st.session_state.query_generator.generate_sql(user_input, schema_info, query_context)
         
         if not sql_query:
             return "I couldn't understand your question. Could you please rephrase it?"
@@ -126,31 +164,98 @@ def main():
     # Sidebar for data upload
     with st.sidebar:
         st.header("📁 Data Upload")
-        uploaded_file = st.file_uploader(
-            "Choose your data file",
-            type=['csv', 'db', 'sqlite', 'sqlite3'],
-            help="Upload a CSV file or SQLite database to start chatting with your data"
+        
+        # Data source selection
+        data_source = st.selectbox(
+            "Choose data source type:",
+            ["File Upload", "Database Connection"],
+            help="Select whether to upload a file or connect to a database"
         )
         
-        if uploaded_file:
-            if handle_file_upload(uploaded_file):
-                st.success("Data ready for queries!")
+        if data_source == "File Upload":
+            uploaded_file = st.file_uploader(
+                "Choose your data file",
+                type=['csv', 'json', 'db', 'sqlite', 'sqlite3'],
+                help="Upload a CSV, JSON, or SQLite database file to start chatting with your data"
+            )
+            
+            if uploaded_file:
+                if handle_file_upload(uploaded_file):
+                    st.success("Data ready for queries!")
+        
+        else:  # Database Connection
+            st.subheader("🔗 Connect to Database")
+            
+            db_type = st.selectbox(
+                "Database Type:",
+                ["MySQL", "PostgreSQL", "MongoDB"],
+                help="Select your database type"
+            )
+            
+            if db_type == "MySQL" or db_type == "PostgreSQL":
+                col1, col2 = st.columns(2)
+                with col1:
+                    host = st.text_input("Host", value="localhost")
+                    database = st.text_input("Database Name")
+                with col2:
+                    port = st.number_input("Port", value=3306 if db_type == "MySQL" else 5432)
+                    username = st.text_input("Username")
+                
+                password = st.text_input("Password", type="password")
+                
+                if st.button(f"Connect to {db_type}"):
+                    connection_params = {
+                        'host': host,
+                        'port': port,
+                        'database': database,
+                        'user': username,
+                        'password': password
+                    }
+                    
+                    if handle_database_connection(db_type.lower(), connection_params):
+                        st.success(f"Connected to {db_type} database!")
+            
+            elif db_type == "MongoDB":
+                uri = st.text_input("MongoDB URI", value="mongodb://localhost:27017/")
+                database = st.text_input("Database Name", value="test")
+                
+                if st.button("Connect to MongoDB"):
+                    connection_params = {
+                        'uri': uri,
+                        'database': database
+                    }
+                    
+                    if handle_database_connection("mongodb", connection_params):
+                        st.success("Connected to MongoDB database!")
         
         # Data info
         if st.session_state.database_connected and st.session_state.data_handler:
             st.header("📊 Data Structure")
             schema_info = st.session_state.data_handler.get_schema_info()
-            data_info = st.session_state.data_handler.get_data_info()
             
-            # Show general info
-            st.metric("File Type", data_info['file_type'].upper())
-            st.metric("Total Rows", data_info['total_rows'])
-            
-            # Show table/file structure
-            for table_name, columns in schema_info.items():
-                with st.expander(f"Structure: {table_name}"):
-                    for col in columns:
-                        st.text(f"• {col}")
+            try:
+                data_info = st.session_state.data_handler.get_data_info()
+                
+                # Show general info
+                data_type = st.session_state.data_source_type or "unknown"
+                st.metric("Data Source", data_type.upper())
+                
+                if 'total_rows' in data_info:
+                    st.metric("Total Rows", data_info['total_rows'])
+                
+                # Show table/file structure
+                for table_name, columns in schema_info.items():
+                    with st.expander(f"Structure: {table_name}"):
+                        for col in columns:
+                            st.text(f"• {col}")
+                            
+            except Exception as e:
+                st.warning(f"Could not load data info: {str(e)}")
+                # Show basic schema info
+                for table_name, columns in schema_info.items():
+                    with st.expander(f"Structure: {table_name}"):
+                        for col in columns:
+                            st.text(f"• {col}")
         
         # Clear chat button
         if st.button("🗑️ Clear Chat History"):

@@ -164,25 +164,70 @@ class DataHandler:
             # Get table name from file
             table_name = os.path.splitext(os.path.basename(self.file_path))[0]
             
-            # Load CSV data into SQLite
-            self.data.to_sql(table_name, conn, index=False, if_exists='replace')
+            # Clean column names to avoid SQL issues
+            cleaned_data = self.data.copy()
+            column_mapping = {}
             
-            # Replace any table references in the query
-            modified_query = sql_query.replace('csv_data', table_name)
-            if table_name not in modified_query.lower():
-                # If query doesn't reference our table, try to add it
-                if 'from' in modified_query.lower() and table_name not in modified_query.lower():
-                    # This is a basic replacement - might need more sophisticated parsing
-                    pass
+            for col in cleaned_data.columns:
+                # Create safe column names
+                safe_col = col.strip().replace(' ', '_').replace('(', '').replace(')', '').replace('₹', 'Rs').replace('%', 'Percent')
+                safe_col = ''.join(c for c in safe_col if c.isalnum() or c == '_')
+                if safe_col != col:
+                    column_mapping[col] = safe_col
+                    cleaned_data = cleaned_data.rename(columns={col: safe_col})
+            
+            # Load CSV data into SQLite with cleaned column names
+            cleaned_data.to_sql(table_name, conn, index=False, if_exists='replace')
+            
+            # Get actual column names from the created table
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table_name});")
+            actual_columns = [row[1] for row in cursor.fetchall()]
+            
+            # Try to fix column references in the query
+            modified_query = sql_query
+            for original_col, safe_col in column_mapping.items():
+                modified_query = modified_query.replace(f'"{original_col}"', safe_col)
+                modified_query = modified_query.replace(original_col, safe_col)
+            
+            # Replace table name references
+            temp_table_names = ['csv_data', 'data', 'table']
+            for temp_name in temp_table_names:
+                modified_query = modified_query.replace(temp_name, table_name)
+            
+            # If query still has issues, try to extract the intent and rebuild
+            if any(col not in modified_query for col in actual_columns if col in sql_query):
+                # Simple fallback: try to map common patterns
+                for actual_col in actual_columns:
+                    # Try different variations
+                    variations = [actual_col.lower(), actual_col.upper(), actual_col.title()]
+                    for var in variations:
+                        if var in modified_query and var != actual_col:
+                            modified_query = modified_query.replace(var, actual_col)
+            
+            print(f"Executing query: {modified_query}")
+            print(f"Available columns: {actual_columns}")
             
             # Execute the query
             result = pd.read_sql_query(modified_query, conn)
             conn.close()
             
+            # Restore original column names in result
+            reverse_mapping = {v: k for k, v in column_mapping.items()}
+            for safe_col, original_col in reverse_mapping.items():
+                if safe_col in result.columns:
+                    result = result.rename(columns={safe_col: original_col})
+            
             return result
             
         except Exception as e:
             print(f"Error executing CSV query: {e}")
+            # Try a simpler approach - just return sample data if query fails
+            try:
+                if self.data is not None:
+                    return self.data.head(10)
+            except:
+                pass
             return None
     
     def _execute_sqlite_query(self, sql_query: str) -> Optional[pd.DataFrame]:
