@@ -1,3 +1,14 @@
 [server]
 headless = true
-address = "0.0.0.0"
+enableCORS = false
+
+
+[client]
+showSidebarNavigation = false
+
+[ui]
+hideTopBar = true
+hideToolbar = true
+
+[browser]
+gatherUsageStats = false
