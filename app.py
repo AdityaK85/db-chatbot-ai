@@ -30,7 +30,7 @@ if "database_connected" not in st.session_state:
 
 def initialize_components():
     """Initialize the chatbot components"""
-    api_key = os.getenv("OPENROUTER_API_KEY", "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")
+    api_key = os.getenv("OPENROUTER_API_KEY", "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")
     st.session_state.query_generator = QueryGenerator(api_key)
     st.session_state.response_formatter = ResponseFormatter(api_key)
 

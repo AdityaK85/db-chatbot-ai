@@ -27,7 +27,7 @@ if [ -f "requirements_local.txt" ]; then
 fi
 
 # Set API key (replace with your actual key if needed)
-export OPENROUTER_API_KEY=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
+export OPENROUTER_API_KEY=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
 
 # Start the application
 echo ""

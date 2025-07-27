@@ -47,11 +47,6 @@ def show_privacy_policy():
     - Analytics data is aggregated and anonymized
     - You can opt out using browser plugins or settings
     
-    ### OpenRouter.ai
-    - We use OpenRouter.ai for AI-powered query processing
-    - Your queries are sent to OpenRouter.ai but are not stored permanently
-    - OpenRouter.ai has its own privacy policy governing data handling
-    
     ## Data Security
     
     ### Protection Measures
